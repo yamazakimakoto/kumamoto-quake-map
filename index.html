@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>令和8年熊本地震 被災状況マップ v2｜ひとつの党 AI仮想内閣</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<style>
+  html,body{margin:0;padding:0;height:100%;font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;}
+  #map{position:absolute;top:66px;bottom:0;left:0;right:0;}
+  header{position:absolute;top:0;left:0;right:0;height:66px;background:#0B2645;color:#fff;
+    display:flex;align-items:center;gap:12px;padding:0 14px;z-index:1000;box-shadow:0 2px 6px rgba(0,0,0,.3);}
+  header h1{font-size:15px;margin:0;font-weight:700;}
+  header .tag{background:#DC2626;border-radius:4px;padding:2px 8px;font-size:12px;font-weight:700;flex:none;}
+  header .time{font-size:10.5px;color:#B4C3D7;margin-left:auto;text-align:right;line-height:1.45;}
+  header .time b{color:#FFD166;}
+  .legend{background:#fff;padding:9px 11px;border-radius:8px;box-shadow:0 1px 6px rgba(0,0,0,.3);
+    font-size:11.5px;line-height:1.65;max-width:230px;}
+  .legend h4{margin:0 0 3px;font-size:11.5px;}
+  .dot{display:inline-block;width:12px;height:12px;border-radius:50%;vertical-align:-1px;margin-right:5px;border:1.5px solid #fff;box-shadow:0 0 2px rgba(0,0,0,.5);}
+  .badge{display:inline-block;border-radius:3px;padding:0 5px;font-size:10.5px;color:#fff;font-weight:700;margin-right:4px;}
+  .disclaimer{position:absolute;bottom:0;left:0;right:0;background:rgba(11,38,69,.93);color:#cdd9ea;
+    font-size:10px;padding:4px 10px;z-index:1000;line-height:1.5;}
+  .leaflet-popup-content{font-size:12.5px;line-height:1.6;}
+  .leaflet-popup-content b{color:#0B2645;}
+  .leaflet-control-layers{font-size:12px;max-height:70vh;overflow:auto;}
+  .leaflet-control-layers label{line-height:1.9;}
+</style>
+</head>
+<body>
+<header>
+  <span class="tag">速報</span>
+  <h1>令和8年熊本地震 被災状況マップ v2</h1>
+  <div class="time">7/28 16:27発生 M7.1・最大震度7｜手動データ更新：<b id="updated">-</b><br>
+  地震レイヤー：気象庁データ<b id="jma-status">取得中…</b>｜左上メニューでレイヤー切替</div>
+</header>
+<div id="map"></div>
+<div id="official-bar" style="position:absolute;top:66px;left:0;right:0;z-index:999;background:#FFF6E5;border-bottom:1px solid #E5C97A;font-size:11.5px;padding:4px 12px;color:#5A4A1A;">
+  🔗 <b>公式情報を最優先してください：</b>
+  <a href="https://www.jma.go.jp/bosai/map.html#contents=earthquake_map" target="_blank">気象庁 地震情報</a>｜
+  <a href="https://www.pref.kumamoto.jp/" target="_blank">熊本県</a>｜
+  <a href="https://www.kantei.go.jp/jp/kikikanri/earthquake20260728.html" target="_blank">首相官邸</a>｜
+  <a href="https://www.wbgt.env.go.jp/" target="_blank">熱中症予防情報（環境省）</a>
+  <span id="unv-note" style="float:right;color:#8A6D1F;"></span>
+</div>
+<div class="disclaimer">
+  ※「ひとつの党」AI仮想内閣（フィクション・思考実験）の災害対応シミュレーション用マップです。地震情報は気象庁公開データを自動取得、被害等は公的発表・報道・SNSの収集情報（<b>時点・出典・確認状態を各ポップアップに明記</b>）。地点は概略位置。<b>未確認情報（グレー）は行動の根拠にしないでください。</b>実際の避難・安全確保は気象庁・自治体の公式情報に従ってください。地図：国土地理院タイル／作成：山崎誠政策研究所
+</div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="data.js"></script>
+<script>
+document.getElementById('updated').textContent = LAST_UPDATED;
+// 公開版：未確認（unverified）情報はデフォルト非表示。URL末尾に ?unverified を付けると表示（運用者向け）
+const SHOW_UNV = new URLSearchParams(location.search).has('unverified');
+const vis = d => SHOW_UNV || d.status !== "unverified";
+document.getElementById('unv-note').textContent = SHOW_UNV
+  ? "⚠️ 未確認情報を表示中（運用者モード）" : "未確認情報は非表示（確認済み情報のみ表示中）";
+const map = L.map('map',{zoomControl:false}).setView([32.66, 130.72], 10);
+L.control.zoom({position:'bottomleft'}).addTo(map);
+L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+  attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>', maxZoom: 18
+}).addTo(map);
+
+// ---- 確認状態（ファクトチェック）----
+const ST = {
+  official:  {c:"#1F7A4D", label:"公的確認"},
+  media:     {c:"#0E7490", label:"報道確認(複数)"},
+  media1:    {c:"#B7791F", label:"報道(単一)"},
+  unverified:{c:"#8A8F98", label:"未確認"},
+};
+const badge = s => `<span class="badge" style="background:${ST[s].c}">${ST[s].label}</span>`;
+const pop = d => `<b>${d.name}</b><br>${badge(d.status)}<span style="color:#666;font-size:11px">時点:${d.asof}／出典:${d.src}</span><br>${d.desc||""}`;
+const emoji = (e,size=22) => L.divIcon({className:'',html:`<div style="font-size:${size}px;line-height:${size}px;text-shadow:0 0 3px #fff,0 0 3px #fff;">${e}</div>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});
+const dia = c => L.divIcon({className:'',html:`<div style="width:13px;height:13px;background:${c};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,.6);transform:rotate(45deg);"></div>`,iconSize:[15,15],iconAnchor:[8,8]});
+
+// ---- L1 地震活動（気象庁 自動取得＋フォールバック）----
+const lyQuake = L.layerGroup();
+const SHINDO_COLOR = {"7":"#6A0DAD","6+":"#DC2626","6-":"#E45656","5+":"#F97316","5-":"#F9A825","4":"#FDD835","3":"#90A4AE"};
+function quakeMarker(lat,lng,mag,maxi,label){
+  const col = SHINDO_COLOR[maxi]||"#90A4AE";
+  const r = maxi==="7"?20:(maxi==="6+"||maxi==="6-")?15:(maxi==="5+"||maxi==="5-")?11:7;
+  return L.circleMarker([lat,lng],{radius:r,color:"#fff",weight:1.2,fillColor:col,fillOpacity:.8}).bindPopup(label);
+}
+// 本震（常時表示・✖）
+L.marker([32.6,130.7],{icon:emoji("✖️",26)}).addTo(lyQuake)
+ .bindPopup("<b>本震 震央</b><br>"+badge("official")+"7/28 16:27 M7.1・深さ約10km（速報値）<br>横ずれ断層型（気象庁）");
+fetch("https://www.jma.go.jp/bosai/quake/data/list.json")
+ .then(r=>r.json())
+ .then(list=>{
+   let n=0;
+   list.forEach(q=>{
+     if(!q.at || q.at < "2026-07-28") return;
+     const m = /^([+-][\d.]+)([+-][\d.]+)/.exec(q.cod||"");
+     if(!m) return;
+     const lat=+m[1], lng=+m[2];
+     if(lat<31.8||lat>33.6||lng<129.6||lng>131.6) return;         // 熊本周辺
+     const maxi=(q.maxi||"").replace("強","+").replace("弱","-");
+     if(!maxi||maxi==="1"||maxi==="2") return;                    // 震度3以上
+     quakeMarker(lat,lng,q.mag,maxi,
+       `<b>${q.anm||"震源"}</b><br>${badge("official")}${(q.at||"").replace("T"," ").slice(0,16)}<br>M${q.mag}・最大震度${q.maxi}（気象庁）`).addTo(lyQuake);
+     n++;
+   });
+   document.getElementById('jma-status').textContent = `自動取得 ✓（震度3以上 ${n}件）`;
+ })
+ .catch(()=>{
+   DATA_QUAKE_FALLBACK.forEach(q=>quakeMarker(q.lat,q.lng,q.mag,q.maxi,pop(q)).addTo(lyQuake));
+   document.getElementById('jma-status').textContent = "自動取得 ✗（保存データ表示中）";
+ });
+
+// ---- 汎用レイヤー生成 ----
+function mkLayer(data, iconFn){
+  const g = L.layerGroup();
+  data.filter(vis).forEach(d=>{ L.marker([d.lat,d.lng],{icon:iconFn(d)}).addTo(g).bindPopup(pop(d)); });
+  return g;
+}
+function mkCircleLayer(data, color){
+  const g = L.layerGroup();
+  data.filter(vis).forEach(d=>{
+    L.circle([d.lat,d.lng],{radius:d.radius||6000,color:color,weight:1.5,dashArray:"5 5",fillColor:color,fillOpacity:.10})
+     .addTo(g).bindPopup(pop(d));
+  });
+  return g;
+}
+const lyDamage   = mkLayer(DATA_DAMAGE,   d=>dia(ST[d.status].c));  // mkLayer側でvis適用済
+const lyShelter  = mkLayer(DATA_SHELTERS, ()=>emoji("🏠",20));
+const lyEvac = L.layerGroup();
+DATA_EVACUEES.filter(vis).forEach(d=>{
+  const r = d.count ? Math.max(10, Math.sqrt(d.count)/2) : 10;
+  const label = d.count ? `避難者 ${d.count.toLocaleString()}人` : "避難者数：集計待ち";
+  L.circleMarker([d.lat,d.lng],{radius:r,color:"#fff",weight:1.2,fillColor:d.count?"#7B1FA2":"#B0BEC5",fillOpacity:.75})
+   .addTo(lyEvac).bindPopup(`<b>${d.name}</b><br>${badge(d.status)}${label}<br><span style="color:#666;font-size:11px">時点:${d.asof}／出典:${d.src}</span>`);
+});
+// L5 医療機関：機能状態で色分けした「Ｈ」マーカー
+const FUNC_STYLE = {
+  open:    {c:"#1F7A4D", label:"受入中（確認）"},
+  limited: {c:"#EF6C00", label:"機能低下（確認）"},
+  closed:  {c:"#C62828", label:"機能停止（確認）"},
+  unknown: {c:"#8A8F98", label:"確認中"},
+};
+const hosIcon = f => L.divIcon({className:'',
+  html:`<div style="width:22px;height:22px;border-radius:50%;background:${FUNC_STYLE[f].c};border:2.5px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.55);color:#fff;font-weight:800;font-size:14px;line-height:22px;text-align:center;font-family:sans-serif;">H</div>`,
+  iconSize:[26,26],iconAnchor:[13,13]});
+const lyMedical = L.layerGroup();
+DATA_MEDICAL.filter(vis).forEach(d=>{
+  L.marker([d.lat,d.lng],{icon:hosIcon(d.func||"unknown")}).addTo(lyMedical)
+   .bindPopup(`<b>${d.name}</b><br><span class="badge" style="background:${FUNC_STYLE[d.func||"unknown"].c}">医療提供：${FUNC_STYLE[d.func||"unknown"].label}</span>${badge(d.status)}<br><span style="color:#666;font-size:11px">時点:${d.asof}／出典:${d.src}</span><br>${d.desc}`);
+});
+// L6 道路・交通：通行止め区間＝ポリライン／地点＝マーカー
+const lyTrans = L.layerGroup();
+DATA_TRANSPORT.filter(vis).forEach(d=>{
+  if(d.type==="line"){
+    const isRail = d.name.includes("新幹線")||d.name.includes("JR");
+    L.polyline(d.path,{color:isRail?"#455A64":"#D32F2F",weight:5,opacity:.85,
+                       dashArray:isRail?"2 8":null})
+     .addTo(lyTrans).bindPopup(pop(d));
+  }else{
+    L.marker([d.lat,d.lng],{icon:emoji("🚧",20)}).addTo(lyTrans).bindPopup(pop(d));
+  }
+});
+const lyPower    = mkCircleLayer(DATA_POWER, "#F9A825");
+const lyGas      = mkCircleLayer(DATA_GAS,   "#8E24AA");
+const lyWater    = mkCircleLayer(DATA_WATER, "#1E88E5");
+const lyMedteam  = mkLayer(DATA_MEDTEAM,  ()=>emoji("⛑️",20));
+// L11 行政・警察・消防・自衛隊：種別アイコン
+const KIND_ICON = {gov:"🏛️", sdf:"🪖", police:"👮", fire:"🚒", dan:"🧯", nat:"🏢"};
+const lyAdmin = L.layerGroup();
+DATA_ADMIN.filter(vis).forEach(d=>{
+  L.marker([d.lat,d.lng],{icon:emoji(KIND_ICON[d.kind]||"🏛️",20)}).addTo(lyAdmin).bindPopup(pop(d));
+});
+const lyVol      = mkLayer(DATA_VOLUNTEER,()=>emoji("🤝",20));
+const lyHeat = L.layerGroup();
+DATA_HEAT.filter(vis).forEach(d=>{
+  if(d.circle){
+    L.circle([d.lat,d.lng],{radius:d.radius,color:"#E53935",weight:1.5,dashArray:"8 6",fillColor:"#E53935",fillOpacity:.06})
+     .addTo(lyHeat).bindPopup(pop(d));
+  }else{
+    L.marker([d.lat,d.lng],{icon:emoji("🌡️",20)}).addTo(lyHeat).bindPopup(pop(d));
+  }
+});
+
+// ---- レイヤーコントロール ----
+const overlays = {
+  "① 地震活動（気象庁・自動）": lyQuake,
+  "② 被害状況（報道・SNS収集）": lyDamage,
+  "③ 避難所": lyShelter,
+  "④ 避難者数": lyEvac,
+  "⑤ 医療機関（機能状況）": lyMedical,
+  "⑥ 道路・交通": lyTrans,
+  "⑦ 電気（停電）": lyPower,
+  "⑧ ガス": lyGas,
+  "⑨ 水道（断水）": lyWater,
+  "⑩ 医療支援チーム": lyMedteam,
+  "⑪ 行政・警察・消防・自衛隊": lyAdmin,
+  "⑫ ボランティア拠点": lyVol,
+  "⑬ 熱中症・暑熱対策": lyHeat,
+};
+[lyQuake,lyDamage,lyShelter,lyPower,lyWater,lyHeat].forEach(l=>l.addTo(map));   // 初期表示
+L.control.layers(null, overlays, {collapsed:false, position:'topleft'}).addTo(map);
+
+// ---- 凡例 ----
+const legend = L.control({position:'bottomright'});
+legend.onAdd = () => {
+  const div = L.DomUtil.create('div','legend');
+  div.innerHTML = `
+    <h4>震度（①）</h4>
+    <span class="dot" style="background:#6A0DAD"></span>7　<span class="dot" style="background:#DC2626"></span>6強　<span class="dot" style="background:#F97316"></span>5強　<span class="dot" style="background:#FDD835"></span>4以下<br>
+    <h4 style="margin-top:6px">確認状態（ファクトチェック）</h4>
+    <span class="badge" style="background:#1F7A4D">公的確認</span><span class="badge" style="background:#0E7490">報道確認(複数)</span><br>
+    <span class="badge" style="background:#B7791F">報道(単一)</span><span class="badge" style="background:#8A8F98">未確認</span><br>
+    <h4 style="margin-top:6px">医療機関（⑤・Hマーク）</h4>
+    <span class="dot" style="background:#1F7A4D"></span>受入中　<span class="dot" style="background:#EF6C00"></span>機能低下<br>
+    <span class="dot" style="background:#C62828"></span>機能停止　<span class="dot" style="background:#8A8F98"></span>確認中<br>
+    <span style="color:#666">⑪ 🏛行政 🪖自衛隊 👮警察 🚒消防 🧯消防団 🏢国<br>◇=被害地点／円(破線)=ライフライン影響<br>灰バブル=避難者数 集計待ち</span>
+  `;
+  return div;
+};
+legend.addTo(map);
+</script>
+</body>
+</html>
