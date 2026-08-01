@@ -8,8 +8,9 @@
 <style>
   html,body{margin:0;padding:0;height:100%;font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;}
   #map{position:absolute;top:66px;bottom:0;left:0;right:0;}
-  header{position:absolute;top:0;left:0;right:0;height:66px;background:#0B2645;color:#fff;
-    display:flex;align-items:center;gap:12px;padding:0 14px;z-index:1000;box-shadow:0 2px 6px rgba(0,0,0,.3);}
+  header .time{flex:1 1 auto;min-width:0;}
+  header{position:absolute;top:0;left:0;right:0;background:#0B2645;color:#fff;
+    display:flex;align-items:center;gap:10px;padding:6px 12px;z-index:1000;box-shadow:0 2px 6px rgba(0,0,0,.3);}
   header h1{font-size:15px;margin:0;font-weight:700;}
   header .tag{background:#DC2626;border-radius:4px;padding:2px 8px;font-size:12px;font-weight:700;flex:none;}
   header .time{font-size:10.5px;color:#B4C3D7;margin-left:auto;text-align:right;line-height:1.45;}
@@ -63,9 +64,22 @@
 <script src="data.js"></script>
 <script>
 document.getElementById('updated').textContent = LAST_UPDATED;
-if(typeof SUMMARY!=="undefined"){
-  document.getElementById('sum').innerHTML =
-    `死者<b>${SUMMARY.dead}</b>人・心肺停止<b>${SUMMARY.cpa}</b>／避難者<b>${SUMMARY.evacuees.toLocaleString()}</b>人(${SUMMARY.shelters}か所)／断水<b>${SUMMARY.water.toLocaleString()}</b>戸 <span style="color:#9fb3cd">（${SUMMARY.asof}）</span>`;
+function renderSummary(){
+  if(typeof SUMMARY==="undefined") return;
+  const el=document.getElementById('sum'); if(!el) return;
+  const narrow = window.innerWidth < 900;
+  el.innerHTML = narrow
+    ? `死者<b>${SUMMARY.dead}</b>／避難<b>${(SUMMARY.evacuees/10000).toFixed(1)}万</b>人／断水<b>${Math.round(SUMMARY.water/1000)}</b>千戸`
+    : `死者<b>${SUMMARY.dead}</b>人・心肺停止<b>${SUMMARY.cpa}</b>／避難者<b>${SUMMARY.evacuees.toLocaleString()}</b>人（${SUMMARY.shelters}か所）／断水<b>${SUMMARY.water.toLocaleString()}</b>戸 <span style="color:#9fb3cd">（${SUMMARY.asof}）</span>`;
+}
+renderSummary();
+// ヘッダー高さに応じて公式バーと地図の位置を自動調整
+function layoutFix(){
+  const h = document.querySelector('header').offsetHeight;
+  const bar = document.getElementById('official-bar');
+  bar.style.top = h + "px";
+  document.getElementById('map').style.top = (h + bar.offsetHeight) + "px";
+  if(typeof map!=="undefined") map.invalidateSize();
 }
 // 公開版：未確認（unverified）情報はデフォルト非表示。URL末尾に ?unverified を付けると表示（運用者向け）
 const SHOW_UNV = new URLSearchParams(location.search).has('unverified');
@@ -319,6 +333,7 @@ let rzTimer;
 window.addEventListener('resize', ()=>{
   clearTimeout(rzTimer);
   rzTimer = setTimeout(()=>{
+    renderSummary(); layoutFix();
     if(UI_TOUCHED) return;
     const mobile = window.innerWidth < 768;
     mobile ? layersCtl.collapse() : layersCtl.expand();
@@ -327,7 +342,8 @@ window.addEventListener('resize', ()=>{
   }, 200);
 });
 // 初期描画直後にも一度判定（埋め込み表示などで初期幅が確定しない環境への保険）
-setTimeout(()=>window.dispatchEvent(new Event('resize')), 300);
+layoutFix();
+setTimeout(()=>{ layoutFix(); window.dispatchEvent(new Event('resize')); }, 300);
 </script>
 </body>
 </html>
