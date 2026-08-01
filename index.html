@@ -25,6 +25,11 @@
   .leaflet-popup-content b{color:#0B2645;}
   .leaflet-control-layers{font-size:12px;max-height:70vh;overflow:auto;}
   .leaflet-control-layers label{line-height:1.9;}
+  .lbl,.lbl-ev,.lbl-lf{background:transparent!important;border:none!important;box-shadow:none!important;
+    font-weight:700;font-size:10px;padding:0!important;}
+  .lbl{color:#0B2645;text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff;}
+  .lbl-ev{color:#fff;text-shadow:0 0 2px rgba(0,0,0,.7);}
+  .lbl-lf{color:#333;font-size:9.5px;text-shadow:0 0 3px #fff,0 0 3px #fff;}
   @media (max-width:767px){
     header h1{font-size:13px;}
     header .time{font-size:9px;}
@@ -38,8 +43,8 @@
 <header>
   <span class="tag">速報</span>
   <h1>令和8年熊本地震 被災状況マップ v2</h1>
-  <div class="time">7/28 16:27発生 M7.1・最大震度7｜手動データ更新：<b id="updated">-</b><br>
-  地震レイヤー：気象庁データ<b id="jma-status">取得中…</b>｜左上メニューでレイヤー切替</div>
+  <div class="time"><span id="sum">-</span><br>
+  7/28 16:27 M7.1・最大震度7｜更新：<b id="updated">-</b>｜気象庁データ<b id="jma-status">取得中…</b></div>
 </header>
 <div id="map"></div>
 <div id="official-bar" style="position:absolute;top:66px;left:0;right:0;z-index:999;background:#FFF6E5;border-bottom:1px solid #E5C97A;font-size:11.5px;padding:4px 12px;color:#5A4A1A;">
@@ -58,6 +63,10 @@
 <script src="data.js"></script>
 <script>
 document.getElementById('updated').textContent = LAST_UPDATED;
+if(typeof SUMMARY!=="undefined"){
+  document.getElementById('sum').innerHTML =
+    `死者<b>${SUMMARY.dead}</b>人・心肺停止<b>${SUMMARY.cpa}</b>／避難者<b>${SUMMARY.evacuees.toLocaleString()}</b>人(${SUMMARY.shelters}か所)／断水<b>${SUMMARY.water.toLocaleString()}</b>戸 <span style="color:#9fb3cd">（${SUMMARY.asof}）</span>`;
+}
 // 公開版：未確認（unverified）情報はデフォルト非表示。URL末尾に ?unverified を付けると表示（運用者向け）
 const SHOW_UNV = new URLSearchParams(location.search).has('unverified');
 const vis = d => SHOW_UNV || d.status !== "unverified";
@@ -79,19 +88,19 @@ const ST = {
 };
 const badge = s => `<span class="badge" style="background:${ST[s].c}">${ST[s].label}</span>`;
 const pop = d => `<b>${d.name}</b><br>${badge(d.status)}<span style="color:#666;font-size:11px">時点:${d.asof}／出典:${d.src}</span><br>${d.desc||""}`;
-const emoji = (e,size=22) => L.divIcon({className:'',html:`<div style="font-size:${size}px;line-height:${size}px;text-shadow:0 0 3px #fff,0 0 3px #fff;">${e}</div>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});
-const dia = c => L.divIcon({className:'',html:`<div style="width:13px;height:13px;background:${c};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,.6);transform:rotate(45deg);"></div>`,iconSize:[15,15],iconAnchor:[8,8]});
+const emoji = (e,size=15) => L.divIcon({className:'',html:`<div style="font-size:${size}px;line-height:${size}px;text-shadow:0 0 3px #fff,0 0 3px #fff;">${e}</div>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});
+const dia = c => L.divIcon({className:'',html:`<div style="width:9px;height:9px;background:${c};border:1.5px solid #fff;box-shadow:0 0 2px rgba(0,0,0,.6);transform:rotate(45deg);"></div>`,iconSize:[11,11],iconAnchor:[6,6]});
 
 // ---- L1 地震活動（気象庁 自動取得＋フォールバック）----
 const lyQuake = L.layerGroup();
 const SHINDO_COLOR = {"7":"#6A0DAD","6+":"#DC2626","6-":"#E45656","5+":"#F97316","5-":"#F9A825","4":"#FDD835","3":"#90A4AE"};
 function quakeMarker(lat,lng,mag,maxi,label){
   const col = SHINDO_COLOR[maxi]||"#90A4AE";
-  const r = maxi==="7"?20:(maxi==="6+"||maxi==="6-")?15:(maxi==="5+"||maxi==="5-")?11:7;
+  const r = maxi==="7"?13:(maxi==="6+"||maxi==="6-")?10:(maxi==="5+"||maxi==="5-")?7:4.5;
   return L.circleMarker([lat,lng],{radius:r,color:"#fff",weight:1.2,fillColor:col,fillOpacity:.8}).bindPopup(label);
 }
 // 本震（常時表示・✖）
-L.marker([32.6,130.7],{icon:emoji("✖️",26)}).addTo(lyQuake)
+L.marker([32.6,130.7],{icon:emoji("✖️",20)}).addTo(lyQuake)
  .bindPopup("<b>本震 震央</b><br>"+badge("official")+"7/28 16:27 M7.1・深さ約10km（速報値）<br>横ずれ断層型（気象庁）");
 fetch("https://www.jma.go.jp/bosai/quake/data/list.json")
  .then(r=>r.json())
@@ -131,14 +140,59 @@ function mkCircleLayer(data, color){
   return g;
 }
 const lyDamage   = mkLayer(DATA_DAMAGE,   d=>dia(ST[d.status].c));  // mkLayer側でvis適用済
-const lyShelter  = mkLayer(DATA_SHELTERS, ()=>emoji("🏠",20));
-const lyEvac = L.layerGroup();
-DATA_EVACUEES.filter(vis).forEach(d=>{
-  const r = d.count ? Math.max(10, Math.sqrt(d.count)/2) : 10;
-  const label = d.count ? `避難者 ${d.count.toLocaleString()}人` : "避難者数：集計待ち";
-  L.circleMarker([d.lat,d.lng],{radius:r,color:"#fff",weight:1.2,fillColor:d.count?"#7B1FA2":"#B0BEC5",fillOpacity:.75})
-   .addTo(lyEvac).bindPopup(`<b>${d.name}</b><br>${badge(d.status)}${label}<br><span style="color:#666;font-size:11px">時点:${d.asof}／出典:${d.src}</span>`);
+// L3/L4：県の市町村別集計から生成（避難所・避難者・人的被害を1ソースで）
+const [MU_NAME,MU_SH,MU_EV,MU_LT,MU_MD,MU_SV,MU_CPA,MU_DEAD,MU_UNC,MU_PW,MU_WT,MU_SP]=[0,1,2,3,4,5,6,7,8,9,10,11];
+function statPopup(r){
+  const cas = r[MU_LT]+r[MU_MD]+r[MU_SV]+r[MU_CPA]+r[MU_DEAD]+r[MU_UNC];
+  let h = `<b>${r[MU_NAME]}</b><br>${badge(STAT_SRC.status)}<span style="color:#666;font-size:11px">時点:${STAT_SRC.asof}／出典:${STAT_SRC.src}</span><br>`;
+  h += `避難所 <b>${r[MU_SH]}</b>か所／避難者 <b>${r[MU_EV].toLocaleString()}</b>人<br>`;
+  if(cas>0){
+    const parts=[];
+    if(r[MU_DEAD]) parts.push(`<span style="color:#C62828">死亡 ${r[MU_DEAD]}</span>`);
+    if(r[MU_CPA]) parts.push(`<span style="color:#C62828">心肺停止 ${r[MU_CPA]}</span>`);
+    if(r[MU_SV]) parts.push(`重症 ${r[MU_SV]}`);
+    if(r[MU_MD]) parts.push(`中等症 ${r[MU_MD]}`);
+    if(r[MU_LT]) parts.push(`軽傷 ${r[MU_LT]}`);
+    if(r[MU_UNC]) parts.push(`分類未確定 ${r[MU_UNC]}`);
+    h += `人的被害：${parts.join("／")}<br>`;
+  }
+  if(r[MU_PW]) h += `停電 ${r[MU_PW].toLocaleString()}戸<br>`;
+  if(r[MU_WT]) h += `断水 ${r[MU_WT].toLocaleString()}戸<br>`;
+  if(r[MU_SP]) h += `給水所 ${r[MU_SP]}か所`;
+  return h;
+}
+// 自治体の代表点（ポリゴン重心）
+function muniCenter(name){
+  const f = (typeof muniFeature==="function") ? muniFeature(name) : null;
+  if(!f) return null;
+  try { return L.geoJSON(f).getBounds().getCenter(); } catch(e){ return null; }
+}
+const lyShelter = L.layerGroup();
+MUNI_STATS.filter(r=>r[MU_SH]>0).forEach(r=>{
+  const c = muniCenter(r[MU_NAME]); if(!c) return;
+  const big = r[MU_SH]>=20;
+  L.marker(c,{icon:emoji("🏠", big?17:12)}).addTo(lyShelter)
+   .bindPopup(statPopup(r))
+   .bindTooltip(`${r[MU_SH]}`,{permanent:true,direction:"right",className:"lbl",offset:[6,0]});
 });
+const lyEvac = L.layerGroup();
+MUNI_STATS.filter(r=>r[MU_EV]>0).forEach(r=>{
+  const c = muniCenter(r[MU_NAME]); if(!c) return;
+  const rad = Math.max(5, Math.min(26, Math.sqrt(r[MU_EV])/2.2));
+  L.circleMarker(c,{radius:rad,color:"#fff",weight:1,fillColor:"#7B1FA2",fillOpacity:.62})
+   .addTo(lyEvac).bindPopup(statPopup(r))
+   .bindTooltip(`${r[MU_EV].toLocaleString()}`,{permanent:true,direction:"center",className:"lbl-ev"});
+});
+// 人的被害レイヤー（死亡・心肺停止のある自治体）
+const lyCasualty = L.layerGroup();
+MUNI_STATS.filter(r=>r[MU_DEAD]+r[MU_CPA]>0).forEach(r=>{
+  const c = muniCenter(r[MU_NAME]); if(!c) return;
+  const v = r[MU_DEAD]+r[MU_CPA];
+  L.circleMarker(c,{radius:Math.max(6,Math.min(18,4+v*1.1)),color:"#fff",weight:1.2,fillColor:"#B00020",fillOpacity:.72})
+   .addTo(lyCasualty).bindPopup(statPopup(r))
+   .bindTooltip(`${v}`,{permanent:true,direction:"center",className:"lbl-ev"});
+});
+
 // L5 医療機関：機能状態で色分けした「Ｈ」マーカー
 const FUNC_STYLE = {
   open:    {c:"#1F7A4D", label:"受入中（確認）"},
@@ -147,8 +201,8 @@ const FUNC_STYLE = {
   unknown: {c:"#8A8F98", label:"確認中"},
 };
 const hosIcon = f => L.divIcon({className:'',
-  html:`<div style="width:22px;height:22px;border-radius:50%;background:${FUNC_STYLE[f].c};border:2.5px solid #fff;box-shadow:0 0 4px rgba(0,0,0,.55);color:#fff;font-weight:800;font-size:14px;line-height:22px;text-align:center;font-family:sans-serif;">H</div>`,
-  iconSize:[26,26],iconAnchor:[13,13]});
+  html:`<div style="width:16px;height:16px;border-radius:50%;background:${FUNC_STYLE[f].c};border:2px solid #fff;box-shadow:0 0 3px rgba(0,0,0,.5);color:#fff;font-weight:800;font-size:10px;line-height:16px;text-align:center;font-family:sans-serif;">H</div>`,
+  iconSize:[20,20],iconAnchor:[10,10]});
 const lyMedical = L.layerGroup();
 DATA_MEDICAL.filter(vis).forEach(d=>{
   L.marker([d.lat,d.lng],{icon:hosIcon(d.func||"unknown")}).addTo(lyMedical)
@@ -163,40 +217,46 @@ DATA_TRANSPORT.filter(vis).forEach(d=>{
                        dashArray:isRail?"2 8":null})
      .addTo(lyTrans).bindPopup(pop(d));
   }else{
-    L.marker([d.lat,d.lng],{icon:emoji("🚧",20)}).addTo(lyTrans).bindPopup(pop(d));
+    L.marker([d.lat,d.lng],{icon:emoji("🚧",14)}).addTo(lyTrans).bindPopup(pop(d));
   }
 });
 // L7-9 ライフライン：市町村単位の色分け（コロプレス）
-const LV_OPACITY = {severe:0.55, partial:0.35, unknown:0.15};
+const LV_OPACITY = {severe:0.55, partial:0.32, restored:0.12, unknown:0.12};
 function muniLayer(data, color, label){
   const g = L.layerGroup();
   data.filter(vis).forEach(d=>{
-    const f = (typeof MUNI_GEO!=="undefined") && MUNI_GEO[d.muni];
+    const f = (typeof muniFeature==="function") ? muniFeature(d.muni) : null;
     if(!f){ console.warn("MUNI_GEO missing:", d.muni); return; }
-    L.geoJSON(f, {style:{color:color, weight:1.5, fillColor:color,
-                 fillOpacity:LV_OPACITY[d.level]||0.2, dashArray:d.level==="unknown"?"4 4":null}})
-     .addTo(g).bindPopup(`<b>${d.muni}｜${label}</b><br>${badge(d.status)}<span style="color:#666;font-size:11px">時点:${d.asof}／出典:${d.src}</span><br>${d.desc}`);
+    const lyr = L.geoJSON(f, {style:{color:color, weight:1.4, fillColor:color,
+                 fillOpacity:LV_OPACITY[d.level]||0.2,
+                 dashArray:(d.level==="unknown"||d.level==="restored")?"4 4":null}}).addTo(g);
+    const nlabel = d.n ? `（${d.n.toLocaleString()}戸）` : "";
+    const done = d.level==="restored" ? "<b style='color:#1F7A4D'>［復旧済］</b>" : "";
+    lyr.bindPopup(`<b>${d.muni}｜${label}${nlabel}</b><br>${done}${badge(d.status)}<span style="color:#666;font-size:11px">時点:${d.asof}／出典:${d.src}</span><br>${d.desc}`);
+    if(d.n && d.level!=="restored"){
+      lyr.bindTooltip(`${(d.n/1000).toFixed(d.n>=10000?0:1)}千戸`,{permanent:true,direction:"center",className:"lbl-lf"});
+    }
   });
   return g;
 }
 const lyPower    = muniLayer(DATA_POWER, "#F9A825", "停電");
 const lyGas      = muniLayer(DATA_GAS,   "#8E24AA", "都市ガス");
 const lyWater    = muniLayer(DATA_WATER, "#1E88E5", "断水");
-const lyMedteam  = mkLayer(DATA_MEDTEAM,  ()=>emoji("⛑️",20));
+const lyMedteam  = mkLayer(DATA_MEDTEAM,  ()=>emoji("⛑️",14));
 // L11 行政・警察・消防・自衛隊：種別アイコン
 const KIND_ICON = {gov:"🏛️", sdf:"🪖", police:"👮", fire:"🚒", dan:"🧯", nat:"🏢"};
 const lyAdmin = L.layerGroup();
 DATA_ADMIN.filter(vis).forEach(d=>{
-  L.marker([d.lat,d.lng],{icon:emoji(KIND_ICON[d.kind]||"🏛️",20)}).addTo(lyAdmin).bindPopup(pop(d));
+  L.marker([d.lat,d.lng],{icon:emoji(KIND_ICON[d.kind]||"🏛️",13)}).addTo(lyAdmin).bindPopup(pop(d));
 });
-const lyVol      = mkLayer(DATA_VOLUNTEER,()=>emoji("🤝",20));
+const lyVol      = mkLayer(DATA_VOLUNTEER,()=>emoji("🤝",14));
 const lyHeat = L.layerGroup();
 DATA_HEAT.filter(vis).forEach(d=>{
   if(d.circle){
     L.circle([d.lat,d.lng],{radius:d.radius,color:"#E53935",weight:1.5,dashArray:"8 6",fillColor:"#E53935",fillOpacity:.06})
      .addTo(lyHeat).bindPopup(pop(d));
   }else{
-    L.marker([d.lat,d.lng],{icon:emoji("🌡️",20)}).addTo(lyHeat).bindPopup(pop(d));
+    L.marker([d.lat,d.lng],{icon:emoji("🌡️",15)}).addTo(lyHeat).bindPopup(pop(d));
   }
 });
 
@@ -204,8 +264,9 @@ DATA_HEAT.filter(vis).forEach(d=>{
 const overlays = {
   "① 地震活動（気象庁・自動）": lyQuake,
   "② 被害状況（報道・SNS収集）": lyDamage,
-  "③ 避難所": lyShelter,
+  "③ 避難所（か所数）": lyShelter,
   "④ 避難者数": lyEvac,
+  "④b 人的被害（死亡・心肺停止）": lyCasualty,
   "⑤ 医療機関（機能状況）": lyMedical,
   "⑥ 道路・交通": lyTrans,
   "⑦ 電気（停電）": lyPower,
