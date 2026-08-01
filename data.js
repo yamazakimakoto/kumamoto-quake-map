@@ -114,26 +114,43 @@ const DATA_TRANSPORT = [
    desc:"運航状況は確認中（公式発表の確認待ち）", status:"unverified", src:"未確認", asof:"7/29"},
 ];
 
-// ---- L7 電気（停電） ----
+// ---- L7 電気（停電）・市町村単位 ----
+// muni は municipalities.js のキー名と一致させる。level: "severe"(大規模)/"partial"(発生確認)/"unknown"(状況確認中)
+// 県全体：約4万8,170戸が停電（ピーク時・九州電力発表/報道）。市町村別の戸数内訳は公表待ち。
 const DATA_POWER = [
-  {name:"熊本県内 停電", lat:32.68, lng:130.68, radius:20000,
-   desc:"約4万8,170戸が停電（ピーク時）。電源車を病院・避難所・浄水場へ重点配備",
-   status:"media", src:"九州電力発表・報道", asof:"7/28夜"},
+  {muni:"八代郡氷川町", level:"severe",
+   desc:"停電発生を確認（戸数内訳は公表待ち）。火災報告も", status:"media", src:"報道", asof:"7/28夜"},
+  {muni:"八代市", level:"partial",
+   desc:"停電発生を確認（戸数内訳は公表待ち）", status:"media", src:"報道", asof:"7/28夜"},
+  {muni:"宇城市", level:"partial",
+   desc:"停電発生を確認（戸数内訳は公表待ち）", status:"media", src:"報道", asof:"7/28夜"},
+  {muni:"宇土市", level:"unknown",
+   desc:"震度6強圏。停電状況の確認中", status:"media1", src:"確認中", asof:"7/29"},
+  {muni:"熊本市南区", level:"unknown",
+   desc:"震度6強圏。停電状況の確認中", status:"media1", src:"確認中", asof:"7/29"},
+  {muni:"下益城郡美里町", level:"unknown",
+   desc:"震度6強圏。停電状況の確認中", status:"media1", src:"確認中", asof:"7/29"},
 ];
 
-// ---- L8 ガス ----
+// ---- L8 ガス・市町村単位 ----
 const DATA_GAS = [
-  {name:"都市ガス供給停止（熊本地区）", lat:32.76, lng:130.70, radius:9000,
-   desc:"安全確認のため供給停止。ブロック単位で点検→順次再開見込み",
-   status:"media", src:"事業者発表・報道", asof:"7/28夜"},
+  {muni:"熊本市中央区", level:"severe", desc:"都市ガス供給停止（安全点検→ブロック単位で順次再開見込み）", status:"media", src:"事業者発表・報道", asof:"7/28夜"},
+  {muni:"熊本市東区", level:"severe", desc:"都市ガス供給停止（同上）", status:"media", src:"事業者・報道", asof:"7/28夜"},
+  {muni:"熊本市西区", level:"severe", desc:"都市ガス供給停止（同上）", status:"media", src:"事業者・報道", asof:"7/28夜"},
+  {muni:"熊本市南区", level:"severe", desc:"都市ガス供給停止（同上）", status:"media", src:"事業者・報道", asof:"7/28夜"},
+  {muni:"熊本市北区", level:"severe", desc:"都市ガス供給停止（同上）", status:"media", src:"事業者・報道", asof:"7/28夜"},
 ];
 
-// ---- L9 水道（断水） ----
+// ---- L9 水道（断水）・市町村単位 ----
 const DATA_WATER = [
-  {name:"氷川町 断水", lat:32.581, lng:130.673, radius:5000,
+  {muni:"八代郡氷川町", level:"severe",
    desc:"1万戸以上が断水。給水車を展開", status:"media", src:"県・報道", asof:"7/28夜"},
-  {name:"広域断水（宇城・八代方面）", lat:32.58, lng:130.63, radius:12000,
-   desc:"広範囲で断水報告。復旧工程は事業体公表待ち", status:"media1", src:"報道", asof:"7/29"},
+  {muni:"宇城市", level:"partial",
+   desc:"広域で断水報告。復旧工程は事業体公表待ち", status:"media1", src:"報道", asof:"7/29"},
+  {muni:"八代市", level:"partial",
+   desc:"広域で断水報告。復旧工程は事業体公表待ち", status:"media1", src:"報道", asof:"7/29"},
+  {muni:"宇土市", level:"unknown",
+   desc:"震度6強圏。断水状況の確認中", status:"media1", src:"確認中", asof:"7/29"},
 ];
 
 // ---- L10 医療支援チーム（DMAT等の展開） ----

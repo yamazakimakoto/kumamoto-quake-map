@@ -25,6 +25,13 @@
   .leaflet-popup-content b{color:#0B2645;}
   .leaflet-control-layers{font-size:12px;max-height:70vh;overflow:auto;}
   .leaflet-control-layers label{line-height:1.9;}
+  @media (max-width:767px){
+    header h1{font-size:13px;}
+    header .time{font-size:9px;}
+    #official-bar{font-size:10px;padding:3px 8px;}
+    .legend{max-width:170px;font-size:10.5px;}
+    .leaflet-control-layers-expanded{max-height:60vh;}
+  }
 </style>
 </head>
 <body>
@@ -47,6 +54,7 @@
   ※「ひとつの党」AI仮想内閣（フィクション・思考実験）の災害対応シミュレーション用マップです。地震情報は気象庁公開データを自動取得、被害等は公的発表・報道・SNSの収集情報（<b>時点・出典・確認状態を各ポップアップに明記</b>）。地点は概略位置。<b>未確認情報（グレー）は行動の根拠にしないでください。</b>実際の避難・安全確保は気象庁・自治体の公式情報に従ってください。地図：国土地理院タイル／作成：山崎誠政策研究所
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="municipalities.js"></script>
 <script src="data.js"></script>
 <script>
 document.getElementById('updated').textContent = LAST_UPDATED;
@@ -55,7 +63,8 @@ const SHOW_UNV = new URLSearchParams(location.search).has('unverified');
 const vis = d => SHOW_UNV || d.status !== "unverified";
 document.getElementById('unv-note').textContent = SHOW_UNV
   ? "⚠️ 未確認情報を表示中（運用者モード）" : "未確認情報は非表示（確認済み情報のみ表示中）";
-const map = L.map('map',{zoomControl:false}).setView([32.66, 130.72], 10);
+const IS_MOBILE = window.innerWidth < 768;
+const map = L.map('map',{zoomControl:false}).setView([32.66, 130.72], IS_MOBILE ? 9 : 10);
 L.control.zoom({position:'bottomleft'}).addTo(map);
 L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
   attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank">国土地理院</a>', maxZoom: 18
@@ -157,9 +166,22 @@ DATA_TRANSPORT.filter(vis).forEach(d=>{
     L.marker([d.lat,d.lng],{icon:emoji("🚧",20)}).addTo(lyTrans).bindPopup(pop(d));
   }
 });
-const lyPower    = mkCircleLayer(DATA_POWER, "#F9A825");
-const lyGas      = mkCircleLayer(DATA_GAS,   "#8E24AA");
-const lyWater    = mkCircleLayer(DATA_WATER, "#1E88E5");
+// L7-9 ライフライン：市町村単位の色分け（コロプレス）
+const LV_OPACITY = {severe:0.55, partial:0.35, unknown:0.15};
+function muniLayer(data, color, label){
+  const g = L.layerGroup();
+  data.filter(vis).forEach(d=>{
+    const f = (typeof MUNI_GEO!=="undefined") && MUNI_GEO[d.muni];
+    if(!f){ console.warn("MUNI_GEO missing:", d.muni); return; }
+    L.geoJSON(f, {style:{color:color, weight:1.5, fillColor:color,
+                 fillOpacity:LV_OPACITY[d.level]||0.2, dashArray:d.level==="unknown"?"4 4":null}})
+     .addTo(g).bindPopup(`<b>${d.muni}｜${label}</b><br>${badge(d.status)}<span style="color:#666;font-size:11px">時点:${d.asof}／出典:${d.src}</span><br>${d.desc}`);
+  });
+  return g;
+}
+const lyPower    = muniLayer(DATA_POWER, "#F9A825", "停電");
+const lyGas      = muniLayer(DATA_GAS,   "#8E24AA", "都市ガス");
+const lyWater    = muniLayer(DATA_WATER, "#1E88E5", "断水");
 const lyMedteam  = mkLayer(DATA_MEDTEAM,  ()=>emoji("⛑️",20));
 // L11 行政・警察・消防・自衛隊：種別アイコン
 const KIND_ICON = {gov:"🏛️", sdf:"🪖", police:"👮", fire:"🚒", dan:"🧯", nat:"🏢"};
@@ -195,13 +217,15 @@ const overlays = {
   "⑬ 熱中症・暑熱対策": lyHeat,
 };
 [lyQuake,lyDamage,lyShelter,lyPower,lyWater,lyHeat].forEach(l=>l.addTo(map));   // 初期表示
-L.control.layers(null, overlays, {collapsed:false, position:'topleft'}).addTo(map);
+const layersCtl = L.control.layers(null, overlays, {collapsed:IS_MOBILE, position:'topleft'}).addTo(map);
 
 // ---- 凡例 ----
 const legend = L.control({position:'bottomright'});
 legend.onAdd = () => {
   const div = L.DomUtil.create('div','legend');
   div.innerHTML = `
+    <div id="lg-head" style="cursor:pointer;font-weight:700;margin:-2px 0 4px;">凡例 <span id="lg-arrow">${IS_MOBILE?"▸":"▾"}</span></div>
+    <div id="lg-body" style="display:${IS_MOBILE?"none":"block"};">
     <h4>震度（①）</h4>
     <span class="dot" style="background:#6A0DAD"></span>7　<span class="dot" style="background:#DC2626"></span>6強　<span class="dot" style="background:#F97316"></span>5強　<span class="dot" style="background:#FDD835"></span>4以下<br>
     <h4 style="margin-top:6px">確認状態（ファクトチェック）</h4>
@@ -210,11 +234,39 @@ legend.onAdd = () => {
     <h4 style="margin-top:6px">医療機関（⑤・Hマーク）</h4>
     <span class="dot" style="background:#1F7A4D"></span>受入中　<span class="dot" style="background:#EF6C00"></span>機能低下<br>
     <span class="dot" style="background:#C62828"></span>機能停止　<span class="dot" style="background:#8A8F98"></span>確認中<br>
-    <span style="color:#666">⑪ 🏛行政 🪖自衛隊 👮警察 🚒消防 🧯消防団 🏢国<br>◇=被害地点／円(破線)=ライフライン影響<br>灰バブル=避難者数 集計待ち</span>
-  `;
+    <h4 style="margin-top:6px">ライフライン（⑦⑧⑨・市町村塗り）</h4>
+    <span class="dot" style="background:#F9A825"></span>停電　<span class="dot" style="background:#1E88E5"></span>断水　<span class="dot" style="background:#8E24AA"></span>ガス<br>
+    <span style="color:#666">濃=大規模／中=発生確認／薄・破線=確認中</span><br>
+    <span style="color:#666">⑪ 🏛行政 🪖自衛隊 👮警察 🚒消防 🧯消防団 🏢国<br>◇=被害地点／灰バブル=避難者数 集計待ち</span>
+  </div>`;
+  L.DomEvent.disableClickPropagation(div);
+  div.querySelector('#lg-head').addEventListener('click', ()=>{
+    UI_TOUCHED = true;
+    const b=div.querySelector('#lg-body'), a=div.querySelector('#lg-arrow');
+    const open=b.style.display!=="none";
+    b.style.display=open?"none":"block"; a.textContent=open?"▸":"▾";
+  });
   return div;
 };
 legend.addTo(map);
+
+// ---- 画面幅の変化に追従（ユーザーが手動で開閉したら自動制御を停止）----
+let UI_TOUCHED = false;
+document.querySelector('.leaflet-control-layers')
+  ?.addEventListener('click', ()=>{ UI_TOUCHED = true; });
+let rzTimer;
+window.addEventListener('resize', ()=>{
+  clearTimeout(rzTimer);
+  rzTimer = setTimeout(()=>{
+    if(UI_TOUCHED) return;
+    const mobile = window.innerWidth < 768;
+    mobile ? layersCtl.collapse() : layersCtl.expand();
+    const b=document.querySelector('#lg-body'), a=document.querySelector('#lg-arrow');
+    if(b){ b.style.display = mobile ? "none" : "block"; if(a) a.textContent = mobile ? "▸" : "▾"; }
+  }, 200);
+});
+// 初期描画直後にも一度判定（埋め込み表示などで初期幅が確定しない環境への保険）
+setTimeout(()=>window.dispatchEvent(new Event('resize')), 300);
 </script>
 </body>
 </html>

@@ -1,7 +1,18 @@
 # 令和8年熊本地震 被災状況マップ v2 ── 運用手順書
 
-**本体**：`kumamoto_quake_map.html`（ブラウザで開くだけで動作）＋`data.js`（手動更新データ）
+**🌐 公開URL**：https://yamazakimakoto.github.io/kumamoto-quake-map/
+**リポジトリ**：https://github.com/yamazakimakoto/kumamoto-quake-map （GitHub Pages・main/root）
+**本体**：`index.html`（ブラウザで開くだけで動作）＋`data.js`（手動更新データ）
 **目的**：状況を継続的に追える「使える」災害情報マップ。①地震はリアルタイム（気象庁自動取得）、②その他レイヤーは1日1〜2回の手動更新で運用。
+
+## 0. 公開版の仕様と更新のしかた
+- **公開版では未確認（unverified）情報はデフォルト非表示**（確認済み情報のみ表示。URL末尾に `?unverified` を付けると運用者向けに全表示）
+- ヘッダー下に**公式情報バー**（気象庁・熊本県・官邸・環境省熱中症サイトへの直リンク）を常設
+- **公開ページの更新**：このフォルダ（＝リポジトリ）で `data.js` と `LAST_UPDATED` を編集後、
+  ```bash
+  cd "/Users/makotoyamazaki/Claude/ひとつの党/13_災害対応_令和8年熊本地震/gis" && git add -A && git commit -m "データ更新 $(date +%m/%d_%H:%M)" && git push
+  ```
+  → 1〜2分でPagesに反映（Claude Codeに「マップを更新してpushして」と頼めば収集→検証→反映まで代行）
 
 ---
 
