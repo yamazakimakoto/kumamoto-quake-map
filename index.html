@@ -62,6 +62,7 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="municipalities.js"></script>
 <script src="data.js"></script>
+<script src="shelters_detail.js"></script>
 <script>
 document.getElementById('updated').textContent = LAST_UPDATED;
 function renderSummary(){
@@ -278,6 +279,32 @@ DATA_HEAT.filter(vis).forEach(d=>{
 const lySupport = (typeof DATA_SUPPORT!=="undefined")
   ? mkLayer(DATA_SUPPORT, ()=>emoji("🛟",15)) : L.layerGroup();
 
+// L15：避難所 個別データ（熊本県「防災情報くまもと」システム・住所/収容人数/混雑度）
+const CROWD_COLOR = {normal:"#43A047", semi:"#FDD835", crowded:"#E53935", unknown:"#9E9E9E"};
+const CROWD_LABEL = {normal:"平常", semi:"やや混雑", crowded:"混雑", unknown:"不明"};
+function shelterDetailPopup(d){
+  let h = `<b>${d.name}</b>（${d.muni}）<br>`;
+  h += `${badge("official")}<span style="color:#666;font-size:11px">出典:熊本県 防災情報くまもと／取得:8/4 2:48</span><br>`;
+  h += `住所：${d.addr}<br>`;
+  if(d.cap) h += `収容人数（目安）：${d.cap.toLocaleString()}人<br>`;
+  h += `混雑状況：<span style="color:${CROWD_COLOR[d.crowd]};font-weight:700">${CROWD_LABEL[d.crowd]}</span><br>`;
+  h += `開設：${d.since}〜<br>`;
+  if(d.note){
+    h += `<div style="margin-top:5px;padding:5px 7px;background:#f4f4f1;border-radius:6px;font-size:11px;color:#444;">`
+       + `${d.note}<br><span style="color:#888">出典：<a href="${d.noteUrl}" target="_blank">${d.noteSrc}</a>（${d.noteAsof}）</span></div>`;
+  }
+  h += `<div style="margin-top:4px;font-size:10.5px;color:#999">※実際の避難者数・物資状況は県システムに含まれません（個別確認できたものを除く）</div>`;
+  return h;
+}
+const lyShelterDetail = L.layerGroup();
+if(typeof DATA_SHELTERS_DETAIL!=="undefined"){
+  DATA_SHELTERS_DETAIL.forEach(d=>{
+    L.circleMarker([d.lat,d.lng],{radius:6,color:"#fff",weight:1.2,
+      fillColor:CROWD_COLOR[d.crowd]||"#9E9E9E",fillOpacity:.85})
+     .addTo(lyShelterDetail).bindPopup(shelterDetailPopup(d));
+  });
+}
+
 // ---- レイヤーコントロール ----
 const overlays = {
   "① 地震活動（気象庁・自動）": lyQuake,
@@ -295,6 +322,7 @@ const overlays = {
   "⑫ ボランティア拠点": lyVol,
   "⑬ 熱中症・暑熱対策": lyHeat,
   "⑭ 被災者支援の窓口・相談先": lySupport,
+  "⑮ 避難所 個別データ（住所・混雑度）": lyShelterDetail,
 };
 [lyQuake,lyDamage,lyShelter,lyPower,lyWater,lyHeat].forEach(l=>l.addTo(map));   // 初期表示
 const layersCtl = L.control.layers(null, overlays, {collapsed:IS_MOBILE, position:'topleft'}).addTo(map);
@@ -317,7 +345,10 @@ legend.onAdd = () => {
     <h4 style="margin-top:6px">ライフライン（⑦⑧⑨・市町村塗り）</h4>
     <span class="dot" style="background:#F9A825"></span>停電　<span class="dot" style="background:#1E88E5"></span>断水　<span class="dot" style="background:#8E24AA"></span>ガス<br>
     <span style="color:#666">濃=大規模／中=発生確認／薄・破線=確認中</span><br>
-    <span style="color:#666">⑪ 🏛行政 🪖自衛隊 👮警察 🚒消防 🧯消防団 🏢国<br>◇=被害地点／灰バブル=避難者数 集計待ち</span>
+    <span style="color:#666">⑪ 🏛行政 🪖自衛隊 👮警察 🚒消防 🧯消防団 🏢国<br>◇=被害地点／灰バブル=避難者数 集計待ち</span><br>
+    <h4 style="margin-top:6px">避難所 個別（⑮・県公式）</h4>
+    <span class="dot" style="background:#43A047"></span>平常　<span class="dot" style="background:#FDD835"></span>やや混雑<br>
+    <span class="dot" style="background:#E53935"></span>混雑　<span class="dot" style="background:#9E9E9E"></span>不明
   </div>`;
   L.DomEvent.disableClickPropagation(div);
   div.querySelector('#lg-head').addEventListener('click', ()=>{
