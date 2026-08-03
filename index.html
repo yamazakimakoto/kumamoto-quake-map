@@ -57,7 +57,7 @@
   <span id="unv-note" style="float:right;color:#8A6D1F;"></span>
 </div>
 <div class="disclaimer">
-  ※「ひとつの党」AI仮想内閣（フィクション・思考実験）の災害対応シミュレーション用マップです。地震情報は気象庁公開データを自動取得、被害等は公的発表・報道・SNSの収集情報（<b>時点・出典・確認状態を各ポップアップに明記</b>）。地点は概略位置。掲載データの全件一覧・出典は<a href="データ管理表.pdf" target="_blank" style="color:#9ec8ff;text-decoration:underline;">掲載データ管理表（PDF）</a>。<b>未確認情報（グレー）は行動の根拠にしないでください。</b>実際の避難・安全確保は気象庁・自治体の公式情報に従ってください。地図：国土地理院タイル／作成：山崎誠政策研究所
+  ※「ひとつの党」AI仮想内閣（フィクション・思考実験）の災害対応シミュレーション用マップです。地震情報は気象庁公開データを自動取得、被害等は公的発表・報道・SNSの収集情報（<b>時点・出典・確認状態を各ポップアップに明記</b>）。地点は概略位置。掲載データの全件一覧・出典は<a href="データ管理表.pdf" target="_blank" style="color:#9ec8ff;text-decoration:underline;">掲載データ管理表（PDF）</a>、被災された方が使える制度は<a href="被災者支援策まとめ.pdf" target="_blank" style="color:#9ec8ff;text-decoration:underline;">被災者支援策まとめ（PDF）</a>。<b>未確認情報（グレー）は行動の根拠にしないでください。</b>実際の避難・安全確保は気象庁・自治体の公式情報に従ってください。地図：国土地理院タイル／作成：山崎誠政策研究所
 </div>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="municipalities.js"></script>
@@ -69,8 +69,8 @@ function renderSummary(){
   const el=document.getElementById('sum'); if(!el) return;
   const narrow = window.innerWidth < 900;
   el.innerHTML = narrow
-    ? `死者<b>${SUMMARY.dead}</b>／避難<b>${(SUMMARY.evacuees/10000).toFixed(1)}万</b>人／断水<b>${Math.round(SUMMARY.water/1000)}</b>千戸`
-    : `死者<b>${SUMMARY.dead}</b>人・心肺停止<b>${SUMMARY.cpa}</b>／避難者<b>${SUMMARY.evacuees.toLocaleString()}</b>人（${SUMMARY.shelters}か所）／断水<b>${SUMMARY.water.toLocaleString()}</b>戸 <span style="color:#9fb3cd">（${SUMMARY.asof}）</span>`;
+    ? `死者<b>${SUMMARY.dead}</b>／避難<b>${(SUMMARY.evacuees/1000).toFixed(1)}千</b>人／断水<b>${Math.round(SUMMARY.water/1000)}</b>千戸`
+    : `死者<b>${SUMMARY.dead}</b>人・負傷<b>${SUMMARY.injured}</b>／避難者<b>${SUMMARY.evacuees.toLocaleString()}</b>人（${SUMMARY.shelters}か所）／断水<b>${SUMMARY.water.toLocaleString()}</b>戸／住家<b>${SUMMARY.houses.toLocaleString()}</b>棟 <span style="color:#9fb3cd">（${SUMMARY.asof}）</span>`;
 }
 renderSummary();
 // ヘッダー高さに応じて公式バーと地図の位置を自動調整
@@ -170,9 +170,10 @@ function statPopup(r){
     if(r[MU_UNC]) parts.push(`分類未確定 ${r[MU_UNC]}`);
     h += `人的被害：${parts.join("／")}<br>`;
   }
-  if(r[MU_PW]) h += `停電 ${r[MU_PW].toLocaleString()}戸<br>`;
-  if(r[MU_WT]) h += `断水 ${r[MU_WT].toLocaleString()}戸<br>`;
-  if(r[MU_SP]) h += `給水所 ${r[MU_SP]}か所`;
+  if(r[MU_PW]) h += `停電 ${r[MU_PW].toLocaleString()}戸<span style="color:#2E7D32">（7/31 16:44 復旧済）</span><br>`;
+  if(r[MU_WT]) h += `断水 <b>${r[MU_WT].toLocaleString()}</b>戸<br>`;
+  if(r[MU_SP]) h += `給水所 ${r[MU_SP]}か所<br>`;
+  if(STAT_SRC.note) h += `<span style="color:#777;font-size:10.5px">${STAT_SRC.note}</span>`;
   return h;
 }
 // 自治体の代表点（ポリゴン重心）
@@ -273,6 +274,9 @@ DATA_HEAT.filter(vis).forEach(d=>{
     L.marker([d.lat,d.lng],{icon:emoji("🌡️",15)}).addTo(lyHeat).bindPopup(pop(d));
   }
 });
+// L14：被災者支援の窓口・相談先
+const lySupport = (typeof DATA_SUPPORT!=="undefined")
+  ? mkLayer(DATA_SUPPORT, ()=>emoji("🛟",15)) : L.layerGroup();
 
 // ---- レイヤーコントロール ----
 const overlays = {
@@ -290,6 +294,7 @@ const overlays = {
   "⑪ 行政・警察・消防・自衛隊": lyAdmin,
   "⑫ ボランティア拠点": lyVol,
   "⑬ 熱中症・暑熱対策": lyHeat,
+  "⑭ 被災者支援の窓口・相談先": lySupport,
 };
 [lyQuake,lyDamage,lyShelter,lyPower,lyWater,lyHeat].forEach(l=>l.addTo(map));   // 初期表示
 const layersCtl = L.control.layers(null, overlays, {collapsed:IS_MOBILE, position:'topleft'}).addTo(map);
@@ -325,6 +330,40 @@ legend.onAdd = () => {
 };
 legend.addTo(map);
 
+// ---- 推移パネル（政府報の時系列）----
+if(typeof TIMELINE!=="undefined"){
+  const trend = L.control({position:'bottomleft'});
+  trend.onAdd = () => {
+    const div = L.DomUtil.create('div','legend');
+    const n = (v,u)=> v===null||v===undefined ? "—" : (v>=1000? (v/1000).toFixed(v>=10000?0:1)+"千"+u : v+u);
+    const rows = TIMELINE.map(r=>`<tr>
+      <td style="white-space:nowrap">${r.t}</td>
+      <td style="text-align:right;color:#C62828;font-weight:700">${r.dead}</td>
+      <td style="text-align:right">${r.ev.toLocaleString()}</td>
+      <td style="text-align:right">${n(r.wt,"戸")}</td>
+      <td style="text-align:right">${r.pw===0?'<span style="color:#2E7D32">復旧</span>':n(r.pw,"戸")}</td>
+      </tr>`).join("");
+    div.innerHTML = `
+      <div id="tl-head" style="cursor:pointer;font-weight:700;margin:-2px 0 4px;">推移（政府報） <span id="tl-arrow">${IS_MOBILE?"▸":"▾"}</span></div>
+      <div id="tl-body" style="display:${IS_MOBILE?"none":"block"};">
+      <table style="border-collapse:collapse;font-size:10.5px;line-height:1.5">
+        <tr style="color:#555"><th style="text-align:left">時点</th><th>死者</th><th>避難者</th><th>断水</th><th>停電</th></tr>
+        ${rows}
+      </table>
+      <div style="color:#777;margin-top:3px">出典：内閣府 被害状況等について 各報</div>
+      </div>`;
+    L.DomEvent.disableClickPropagation(div);
+    div.querySelector('#tl-head').addEventListener('click', ()=>{
+      UI_TOUCHED = true;
+      const b=div.querySelector('#tl-body'), a=div.querySelector('#tl-arrow');
+      const open=b.style.display!=="none";
+      b.style.display=open?"none":"block"; a.textContent=open?"▸":"▾";
+    });
+    return div;
+  };
+  trend.addTo(map);
+}
+
 // ---- 画面幅の変化に追従（ユーザーが手動で開閉したら自動制御を停止）----
 let UI_TOUCHED = false;
 document.querySelector('.leaflet-control-layers')
@@ -337,8 +376,10 @@ window.addEventListener('resize', ()=>{
     if(UI_TOUCHED) return;
     const mobile = window.innerWidth < 768;
     mobile ? layersCtl.collapse() : layersCtl.expand();
-    const b=document.querySelector('#lg-body'), a=document.querySelector('#lg-arrow');
-    if(b){ b.style.display = mobile ? "none" : "block"; if(a) a.textContent = mobile ? "▸" : "▾"; }
+    [["#lg-body","#lg-arrow"],["#tl-body","#tl-arrow"]].forEach(([bs,as])=>{
+      const b=document.querySelector(bs), a=document.querySelector(as);
+      if(b){ b.style.display = mobile ? "none" : "block"; if(a) a.textContent = mobile ? "▸" : "▾"; }
+    });
   }, 200);
 });
 // 初期描画直後にも一度判定（埋め込み表示などで初期幅が確定しない環境への保険）
