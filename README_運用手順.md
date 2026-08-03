@@ -12,7 +12,7 @@
 - ヘッダー下に**公式情報バー**（気象庁・熊本県・官邸・環境省熱中症サイトへの直リンク）を常設
 - **公開ページの更新**：このフォルダ（＝リポジトリ）で `data.js` と `LAST_UPDATED` を編集後、
   ```bash
-  cd "/Users/makotoyamazaki/Claude/ひとつの党/13_災害対応_令和8年熊本地震/gis" && git add -A && git commit -m "データ更新 $(date +%m/%d_%H:%M)" && git push
+  cd "/Users/makotoyamazaki/Claude/熊本地震GIS/gis" && git add -A && git commit -m "データ更新 $(date +%m/%d_%H:%M)" && git push
   ```
   → 1〜2分でPagesに反映（Claude Codeに「マップを更新してpushして」と頼めば収集→検証→反映まで代行）
 
